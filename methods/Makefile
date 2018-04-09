@@ -7,4 +7,5 @@ all dep clean indent tests::
 	cd projcoordesc && $(MAKE) $@ && cd .. 
 	cd advancedcoordescent && $(MAKE) $@ && cd .. 
 	cd mtcoordescent && $(MAKE) $@ && cd .. 
+	cd randomsearch && $(MAKE) $@ && cd .. 
 
