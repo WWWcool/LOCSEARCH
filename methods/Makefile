@@ -8,4 +8,3 @@ all dep clean indent tests::
 	cd advancedcoordescent && $(MAKE) $@ && cd .. 
 	cd mtcoordescent && $(MAKE) $@ && cd .. 
 	cd randomsearch && $(MAKE) $@ && cd .. 
-

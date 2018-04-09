@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     desc.getOptions().mDec = 0.318;
     desc.getOptions().mDoTracing = false;
     desc.getOptions().numbOfPoints = 700;
-    desc.getOptions().maxStepNumber = 1500;
+    desc.getOptions().maxStepNumber = 1300;
 
     //desc.getOptions().mSearchType = LOCSEARCH::AdvancedCoordinateDescent<double>::SearchTypes::NO_DESCENT;
     //desc.getOptions().mVicinityAdaptation = LOCSEARCH::AdvancedCoordinateDescent<double>::VARIABLE_ADAPTATION;

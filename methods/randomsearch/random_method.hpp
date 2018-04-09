@@ -17,6 +17,11 @@
 #include <string>
 #include <random>
 
+/*
+#include <methods/boost/random.hpp>
+#include <methods/boost/random/variate_generator.hpp>
+#include <methods/boost/random/uniform_on_sphere.hpp>
+*/
 
 namespace LOCSEARCH {
     /**
@@ -122,11 +127,30 @@ namespace LOCSEARCH {
             std::default_random_engine generator;
             std::normal_distribution<FT> distribution(0.0,1.0);
             
+            /*typedef boost::mt19937 gen;
+            typedef boost::uniform_on_sphere<float_t> dist(n);
+            typedef boost::variate_generator<GeneratorType, DistributionType > variate(gen, dist);
+            */
+            
             const snowgoose::Box<double>& box = *(mProblem.mBox);
             FT sft = 1.0;
             FT sum = 0.0;
 
             FT* dirs = new FT[n * mOptions.numbOfPoints];
+            // boost generator
+            /*auto direction = [&] () {
+                
+                for (int j = 0; j < mOptions.numbOfPoints; j++)
+                {
+                    DistributionType::result_type tmp = variate();
+                    for (int i = 0; i< n; i++)
+                    {
+                        dirs [n*j + i] = tmp[i];     
+                    }
+                }
+            };*/
+            
+            //generator, based on normal distribution
             auto direction = [&] () {
                 for (int j = 0; j < mOptions.numbOfPoints; j++)
                 {
