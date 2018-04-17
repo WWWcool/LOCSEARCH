@@ -58,6 +58,7 @@ namespace LOCSEARCH {
              * Search along Hooke-Jeeves direction
              */
             BEST_POINT,
+            BEST_TRYING,
             /**
              * Search along anti-pseudo-grad
              */
@@ -114,7 +115,7 @@ namespace LOCSEARCH {
             /**
              * Search type
              */
-            SearchTypes mSearchType = SearchTypes::BEST_POINT;
+            SearchTypes mSearchType = SearchTypes::BEST_TRYING;
         };
 
         /**
@@ -150,6 +151,8 @@ namespace LOCSEARCH {
             
             FT fcur = obj->func(x);
             int StepNumber = 0; 
+            int Unsuccess = 0;
+            double grain_size = 0.1;
             bool br = false;
             
             unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -162,16 +165,21 @@ namespace LOCSEARCH {
             */
             
             FT* dirs;
+            FT* main_dir;
             const snowgoose::Box<double>& box = *(mProblem.mBox);
             FT sft = 1.0;
 
-            if (mOptions.mSearchType == SearchTypes::BEST_POINT)
+            if ((mOptions.mSearchType == SearchTypes::BEST_POINT)||(mOptions.mSearchType == SearchTypes::BEST_TRYING))
             {
                dirs = new FT[n * mOptions.numbOfPoints];
             } 
             else
             {    
-               dirs = new FT[n];
+               if (mOptions.mSearchType == SearchTypes::STANDART)
+               {
+                   dirs = new FT[n];
+               }
+               else dirs = new FT[n*n];
             }
             // boost generator
             /*auto direction = [&] () {
@@ -187,7 +195,7 @@ namespace LOCSEARCH {
             };*/
             
             //generator, based on normal distribution
-            auto direction = [&] (int amount_of_points) {
+            /*auto direction = [&] (int amount_of_points) {
                 for (int j = 0; j < amount_of_points; j++)
                 {
                     FT sum = 0.0;
@@ -202,8 +210,36 @@ namespace LOCSEARCH {
                         dirs [n*j + i] /= sum;  
                     }
                 }
+            };*/
+            auto direction = [&] (int amount_of_points) {
+                    for (int j = 0; j < amount_of_points; j++)
+                    {
+                        for (int i = 0; i< n; i++)
+                        {
+                            dirs [n*j + i] = distribution(generator);
+                        }
+                    }
+                };
+            auto normalize = [&] () {
+                        FT sum = 0.0;
+                        for (int i = 0; i< n; i++)
+                        {
+                            sum += (main_dir [i]) * (main_dir [i]);  
+                        }
+                        sum = sqrt(sum);
+                        for (int i = 0; i< n; i++)
+                        {
+                            main_dir [ i] /= sum;  
+                        }
             };
-            
+            /*auto direction = [&] (int amount_of_points) {
+                snowgoose::VecUtils::vecSet(n * n, 0., dirs);
+                for (int i = 0; i < n; i++) 
+                {
+                    dirs[i * n + i] = 1;
+                }
+            };*/
+
             auto inc = [this] (FT h) {
                 FT t = h;
                 t = h * mOptions.mInc;
@@ -222,7 +258,58 @@ namespace LOCSEARCH {
                 std::cout << "\n*** Step " << StepNumber << " ***\n";
                 bool isStepSuccessful = false;
                 const FT h = sft;
-                
+                int Unsuccess = 0;
+                if (mOptions.mSearchType == SearchTypes::GRANULARITY)
+                {
+                    FT* parameter_tweak = new FT[n];
+                    double t = rand() - 0.5;
+                    FT xtmp[n];
+                    int vector_number = rand() % n; 
+                        for (int j = 0; j < n; j++)
+                        {
+                            parameter_tweak[j] = t * dirs[vector_number * n + j] * grain_size;
+                            xtmp[j] = parameter_tweak[j] + x[j];
+                        }
+                        FT fn = obj->func(xtmp); 
+                        if (fn < fcur)
+                        {
+                            isStepSuccessful = true;
+                            snowgoose::VecUtils::vecCopy(n, xtmp, x);
+                            fcur = fn;
+                        }
+                }
+                if (mOptions.mSearchType == SearchTypes::BEST_TRYING)
+                {   
+                    FT delta_f[mOptions.numbOfPoints];
+                    FT delta_x[n];
+                    FT xtmp[n];
+                    main_dir = new FT[n];
+                    snowgoose::VecUtils::vecSet(n, 0., main_dir);
+
+                    for (int i = 0; i < mOptions.numbOfPoints; i++) 
+                    {
+                        for (int j = 0; j < n; j++)
+                        {
+                            delta_x[j] = x[j] + dirs[i * n + j] * h;
+                        }
+                        delta_f[i] = obj->func(delta_x);
+                        delta_f[i] = delta_f[i] - fcur;
+                        for (int j = 0; j < n; j++)
+                        {   
+                            main_dir[j] += dirs[i * n + j] * delta_f[i];
+                        }
+                    }
+                    snowgoose::VecUtils::vecMult(n, main_dir, (- 1.0 / h), main_dir);
+                    normalize();
+                    snowgoose::VecUtils::vecSaxpy(n, x, main_dir, h, xtmp);
+                    FT fn = obj->func(xtmp);
+                    if (fn < fcur)
+                    {
+                        isStepSuccessful = true;
+                        snowgoose::VecUtils::vecCopy(n, xtmp, x);
+                        fcur = fn;
+                    }
+                }
                 if (mOptions.mSearchType == SearchTypes::BEST_POINT)
                 {   
                     FT best_f = fcur;
@@ -329,7 +416,7 @@ namespace LOCSEARCH {
             };
            
             while (!br) {
-                if (mOptions.mSearchType == SearchTypes::STANDART)
+                if ((mOptions.mSearchType == SearchTypes::STANDART) || (mOptions.mSearchType == SearchTypes::GRANULARITY))
                 {
                     direction(1);
                 }
@@ -347,18 +434,34 @@ namespace LOCSEARCH {
                 }
                 
                 if (!success) {
-                    if (sft > mOptions.minStep) 
+                    if (mOptions.mSearchType == SearchTypes::GRANULARITY)
                     {
-                        sft = dec(sft);
-                    } 
+                        ++Unsuccess; 
+                        if ((StepNumber%100 == 0) && (Unsuccess >= 95))
+                        {
+                            grain_size *= 0.1;
+                            Unsuccess = 0;
+                        }
+                            
+                    }
                     else
                     {
-                        br = true;
+                        if (sft > mOptions.minStep) 
+                            {
+                                sft = dec(sft);
+                            } 
+                            else
+                            {
+                                br = true;
+                            }
                     }
                 }  
                 else 
                 {
-                   sft = inc(sft);
+                    if (mOptions.mSearchType != SearchTypes::GRANULARITY)
+                    {
+                        sft = inc(sft);
+                    }
                 }
                 
                 if (StepNumber >= mOptions.maxStepNumber) {

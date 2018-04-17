@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     desc.getLineSearch().reset(locs);    
     desc.getOptions().mInc = 1.418;
     desc.getOptions().mDec = 0.368;
-    desc.getOptions().mDoTracing = false;
+    //desc.getOptions().mDoTracing = false;
     desc.getOptions().numbOfPoints = 1700;
     desc.getOptions().maxStepNumber = 2000;
 
