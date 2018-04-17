@@ -15,6 +15,7 @@
 #include <common/lineseach.hpp>
 #include <math.h>
 #include <string>
+#include <chrono>
 #include <random>
 
 /*
@@ -47,7 +48,29 @@ namespace LOCSEARCH {
          * @param gran - current granularity vector
          */
         using Watcher = std::function<void(FT fval, const FT* x, const std::vector<FT>& gran, int stpn) >;
-
+        
+        enum SearchTypes {
+            /**
+             * Adapted random search
+             */
+            STANDART,
+            /**
+             * Search along Hooke-Jeeves direction
+             */
+            BEST_POINT,
+            /**
+             * Search along anti-pseudo-grad
+             */
+            ANNEALING,
+                    /**
+             * Search along Hooke-Jeeves direction
+             */
+            BASIN_HOPPING,
+            /**
+             * Search along Hooke-Jeeves direction
+             */
+            GRANULARITY
+        };
         /**
          * Options for Gradient Box Descent method
          */
@@ -59,7 +82,7 @@ namespace LOCSEARCH {
             /**
              * Minimal value of step
              */
-            FT minStep = 0.0001;
+            FT minStep = 0.0000001;
             /**
              * Initial value of granularity
              */
@@ -75,7 +98,7 @@ namespace LOCSEARCH {
             /**
              * Lower bound for granularity
              */
-            FT mHLB = 1e-08;//-1e+02;
+            FT mHLB = 1e-08;
             /**
              * Upper bound on granularity
              */
@@ -88,6 +111,10 @@ namespace LOCSEARCH {
              * Max steps number
              */
             int maxStepNumber = 800;
+            /**
+             * Search type
+             */
+            SearchTypes mSearchType = SearchTypes::BEST_POINT;
         };
 
         /**
@@ -115,6 +142,7 @@ namespace LOCSEARCH {
          * @param v  the resulting value
          * @return true if search converged and false otherwise
          */
+      
         bool search(FT* x, FT& v) override {
             bool rv = false;
             auto obj = mProblem.mObjectives.at(0);
@@ -124,7 +152,8 @@ namespace LOCSEARCH {
             int StepNumber = 0; 
             bool br = false;
             
-            std::default_random_engine generator;
+            unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+            std::default_random_engine generator(seed);
             std::normal_distribution<FT> distribution(0.0,1.0);
             
             /*typedef boost::mt19937 gen;
@@ -132,11 +161,18 @@ namespace LOCSEARCH {
             typedef boost::variate_generator<GeneratorType, DistributionType > variate(gen, dist);
             */
             
+            FT* dirs;
             const snowgoose::Box<double>& box = *(mProblem.mBox);
             FT sft = 1.0;
-            FT sum = 0.0;
 
-            FT* dirs = new FT[n * mOptions.numbOfPoints];
+            if (mOptions.mSearchType == SearchTypes::BEST_POINT)
+            {
+               dirs = new FT[n * mOptions.numbOfPoints];
+            } 
+            else
+            {    
+               dirs = new FT[n];
+            }
             // boost generator
             /*auto direction = [&] () {
                 
@@ -151,13 +187,14 @@ namespace LOCSEARCH {
             };*/
             
             //generator, based on normal distribution
-            auto direction = [&] () {
-                for (int j = 0; j < mOptions.numbOfPoints; j++)
+            auto direction = [&] (int amount_of_points) {
+                for (int j = 0; j < amount_of_points; j++)
                 {
+                    FT sum = 0.0;
                     for (int i = 0; i< n; i++)
                     {
                         dirs [n*j + i] = distribution(generator);
-                        sum += (dirs [n*j + i]) * (dirs [n*j + i]);     
+                        sum += (dirs [n*j + i]) * (dirs [n*j + i]);  
                     }
                     sum = sqrt(sum);
                     for (int i = 0; i< n; i++)
@@ -184,80 +221,128 @@ namespace LOCSEARCH {
             auto step = [&] () {
                 std::cout << "\n*** Step " << StepNumber << " ***\n";
                 bool isStepSuccessful = false;
-                int numb_of_best_vec = -1;
-                FT best_f = fcur;
-                FT x_best[n];
-                bool trigger = false;
                 const FT h = sft;
+                
+                if (mOptions.mSearchType == SearchTypes::BEST_POINT)
+                {   
+                    FT best_f = fcur;
+                    FT x_best[n];
+                    int numb_of_best_vec = -1;
 
-                for (int i = 0; i < mOptions.numbOfPoints; i++) {
-                    
-                    bool global_continue = false;
-                    FT xtmp[n]; 
-                    for (int j = 0; j < n; j++)
+                    for (int i = 0; i < mOptions.numbOfPoints; i++) 
                     {
-                        xtmp[j] = x[j] + dirs[i * n + j] * h;
-                        if ((xtmp[j] != SGMAX(xtmp[j], box.mA[j])) || (xtmp[j] != SGMIN(xtmp[j], box.mB[j])))
-                        {
-                            global_continue = true;
-                            break;
-                        }  
-                    }
-                    if (global_continue) 
-                    {
-                        continue;
-                    }
                     
-                    FT fn = obj->func(xtmp);
-                  
-                    if (mOptions.mDoTracing) {
-                        printArray("xtmp", n, xtmp);
-                    }
-                    
-                    if (fn < fcur) {
-                        FT x_continued[n];
-                        for (int q = 0; q < n; q++)
+                        bool global_continue = false;
+                        FT xtmp[n]; 
+                        for (int j = 0; j < n; j++)
                         {
-                            x_continued[q] = x[q] + mOptions.mInc * (xtmp[q] - x[q]);
-                            if((x_continued[q] != SGMAX(x_continued[q], box.mA[q])) || (x_continued[q] != SGMIN(x_continued[q], box.mB[q])))
+                            xtmp[j] = x[j] + dirs[i * n + j] * h;
+                            if ((xtmp[j] != SGMAX(xtmp[j], box.mA[j])) || (xtmp[j] != SGMIN(xtmp[j], box.mB[j])))
                             {
                                 global_continue = true;
                                 break;
-                            }
+                            }  
                         }
                         if (global_continue) 
                         {
                             continue;
                         }
-                        FT f_continued = obj->func(x_continued);
-                        if (f_continued < fcur) {
-                            if (f_continued < best_f)
+
+                        FT fn = obj->func(xtmp);
+
+                        /*if (mOptions.mDoTracing) {
+                            printArray("xtmp", n, xtmp);
+                        }*/
+
+                        if (fn < fcur) {
+                            FT x_continued[n];
+                            for (int q = 0; q < n; q++)
+                            {
+                                x_continued[q] = x[q] + mOptions.mInc * (xtmp[q] - x[q]);
+                                if((x_continued[q] != SGMAX(x_continued[q], box.mA[q])) || (x_continued[q] != SGMIN(x_continued[q], box.mB[q])))
                                 {
-                                    
-                                    best_f = f_continued;
-                                    snowgoose::VecUtils::vecCopy(n, x_continued, x_best);
-                                    numb_of_best_vec = i;
-                                } 
-                        }
-                    } 
+                                    global_continue = true;
+                                    break;
+                                }
+                            }
+                            if (global_continue) 
+                            {
+                                continue;
+                            }
+                            FT f_continued = obj->func(x_continued);
+                            if (f_continued < fcur) {
+                                if (f_continued < best_f)
+                                    {
+
+                                        best_f = f_continued;
+                                        snowgoose::VecUtils::vecCopy(n, x_continued, x_best);
+                                        numb_of_best_vec = i;
+                                    } 
+                            }
+                        } 
+                    }
+                    if (numb_of_best_vec != -1)
+                    {
+                        isStepSuccessful = true;
+                        snowgoose::VecUtils::vecCopy(n, x_best, x);
+                        fcur = best_f;
+                    }
                 }
-                if (numb_of_best_vec != -1)
+                if (mOptions.mSearchType == SearchTypes::STANDART)
                 {
-                    isStepSuccessful = true;
-                    snowgoose::VecUtils::vecCopy(n, x_best, x);
-                    fcur = best_f;
-                }
+                        FT xtmp[n]; 
+                        bool bad_point = false;
+                        for (int j = 0; j < n; j++)
+                        {
+                            xtmp[j] = x[j] + dirs[j] * h;
+                            if ((xtmp[j] != SGMAX(xtmp[j], box.mA[j])) || (xtmp[j] != SGMIN(xtmp[j], box.mB[j])))
+                            {
+                                continue;
+                            }  
+                        }
+                        FT fn = obj->func(xtmp);
+
+                        if (fn < fcur) {
+                            FT x_continued[n];
+                            for (int q = 0; q < n; q++)
+                            {
+                                x_continued[q] = x[q] + mOptions.mInc * (xtmp[q] - x[q]);
+                                if((x_continued[q] != SGMAX(x_continued[q], box.mA[q])) || (x_continued[q] != SGMIN(x_continued[q], box.mB[q])))
+                                {
+                                    bad_point = true;
+                                    break;
+                                }
+                            }
+                            if (!bad_point)
+                            {
+                                    FT f_continued = obj->func(x_continued);
+                                    if (f_continued < fcur) {
+                                        isStepSuccessful = true;
+                                        snowgoose::VecUtils::vecCopy(n, x_continued, x);
+                                        fcur = f_continued;
+                                
+                                    }
+                            }
+                        } 
+                    }
                 return isStepSuccessful;
             };
            
             while (!br) {
-                direction();
+                if (mOptions.mSearchType == SearchTypes::STANDART)
+                {
+                    direction(1);
+                }
+                else 
+                    direction(mOptions.numbOfPoints);
+                
                 bool success = step();
  
                 StepNumber++;
                 if (mOptions.mDoTracing) {
                     std::cout << (success ? "Success" : "Not success") << std::endl;
-                    printArray("x", n, x);
+                    //printArray("x", n, x);
+                    std::cout << "f =" << fcur << std::endl;
                     std::cout << "sft =" << sft << std::endl;
                 }
                 
@@ -279,9 +364,6 @@ namespace LOCSEARCH {
                 if (StepNumber >= mOptions.maxStepNumber) {
                     br = true;
                 }
-                /*for (auto w : mWatchers) {
-                    w(fcur, x, sft, StepNumber);
-                }*/
                 
                 for (auto s : mStoppers) {
                     if (s(fcur, x, StepNumber)) {

@@ -63,15 +63,16 @@ int main(int argc, char** argv) {
     locs->getOptions().mMaxFailStepsBack = 0;
 #endif    
     desc.getLineSearch().reset(locs);    
-    desc.getOptions().mInc = 1.618;
-    desc.getOptions().mDec = 0.318;
+    desc.getOptions().mInc = 1.418;
+    desc.getOptions().mDec = 0.368;
     desc.getOptions().mDoTracing = false;
-    desc.getOptions().numbOfPoints = 700;
-    desc.getOptions().maxStepNumber = 1300;
+    desc.getOptions().numbOfPoints = 1700;
+    desc.getOptions().maxStepNumber = 2000;
 
     //desc.getOptions().mSearchType = LOCSEARCH::AdvancedCoordinateDescent<double>::SearchTypes::NO_DESCENT;
     //desc.getOptions().mVicinityAdaptation = LOCSEARCH::AdvancedCoordinateDescent<double>::VARIABLE_ADAPTATION;
     //desc.getOptions().mVicinityAdaptation = LOCSEARCH::AdvancedCoordinateDescent<double>::UNIFORM_ADAPTATION;
+    
     double x[n];
     snowgoose::BoxUtils::getCenter(*(mpp->mBox), x);
     double v;
