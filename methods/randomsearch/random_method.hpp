@@ -115,7 +115,7 @@ namespace LOCSEARCH {
             /**
              * Search type
              */
-            SearchTypes mSearchType = SearchTypes::BEST_TRYING;
+            SearchTypes mSearchType = SearchTypes::BEST_POINT;
         };
 
         /**
@@ -152,12 +152,17 @@ namespace LOCSEARCH {
             FT fcur = obj->func(x);
             int StepNumber = 0; 
             int Unsuccess = 0;
-            double grain_size = 0.1;
+            double grain_size = 1.0;
             bool br = false;
             
             unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
             std::default_random_engine generator(seed);
             std::normal_distribution<FT> distribution(0.0,1.0);
+            std::mt19937_64 rng;
+            uint64_t timeSeed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed>>32)};
+            rng.seed(ss);
+            std::uniform_real_distribution<double> unif(0, 1);
             
             /*typedef boost::mt19937 gen;
             typedef boost::uniform_on_sphere<float_t> dist(n);
@@ -195,7 +200,7 @@ namespace LOCSEARCH {
             };*/
             
             //generator, based on normal distribution
-            /*auto direction = [&] (int amount_of_points) {
+            auto direction = [&] (int amount_of_points) {
                 for (int j = 0; j < amount_of_points; j++)
                 {
                     FT sum = 0.0;
@@ -210,8 +215,8 @@ namespace LOCSEARCH {
                         dirs [n*j + i] /= sum;  
                     }
                 }
-            };*/
-            auto direction = [&] (int amount_of_points) {
+            };
+            /*auto direction = [&] (int amount_of_points) {
                     for (int j = 0; j < amount_of_points; j++)
                     {
                         for (int i = 0; i< n; i++)
@@ -219,7 +224,7 @@ namespace LOCSEARCH {
                             dirs [n*j + i] = distribution(generator);
                         }
                     }
-                };
+                };*/
             auto normalize = [&] () {
                         FT sum = 0.0;
                         for (int i = 0; i< n; i++)
@@ -262,7 +267,7 @@ namespace LOCSEARCH {
                 if (mOptions.mSearchType == SearchTypes::GRANULARITY)
                 {
                     FT* parameter_tweak = new FT[n];
-                    double t = rand() - 0.5;
+                    double t = unif(rng) - 0.5;
                     FT xtmp[n];
                     int vector_number = rand() % n; 
                         for (int j = 0; j < n; j++)
@@ -517,14 +522,13 @@ namespace LOCSEARCH {
         //std::vector<Watcher> mWatchers;
         std::unique_ptr<LineSearch<FT>> mLS;
         
-        void printArray(const char * name, int n, FT * array) {
-            std::cout << name << " = ";
+        void printArray(int n, FT * array) {
+            std::cout << " dirs = ";
             std::cout << snowgoose::VecUtils::vecPrint(n, array) << std::endl;
         }
         
-        void printVector(const char * name, int n, std::vector<FT> vector) {
-            std::cout << name << " = ";
-            std::cout << "[ ";
+        void printVector(int n, std::vector<FT> vector) {
+            std::cout << " dirs = ";
             for (int i = 0; i < n; i++) {
                 std::cout << vector[i] << ", ";
             }
