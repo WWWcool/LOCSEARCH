@@ -115,7 +115,7 @@ namespace LOCSEARCH {
             /**
              * Search type
              */
-            SearchTypes mSearchType = SearchTypes::BEST_POINT;
+            SearchTypes mSearchType = SearchTypes::ANNEALING;
         };
 
         /**
@@ -154,6 +154,7 @@ namespace LOCSEARCH {
             int Unsuccess = 0;
             double grain_size = 1.0;
             bool br = false;
+            double annealing_temp = 100;
             
             unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
             std::default_random_engine generator(seed);
@@ -174,7 +175,7 @@ namespace LOCSEARCH {
             const snowgoose::Box<double>& box = *(mProblem.mBox);
             FT sft = 1.0;
 
-            if ((mOptions.mSearchType == SearchTypes::BEST_POINT)||(mOptions.mSearchType == SearchTypes::BEST_TRYING))
+            if ((mOptions.mSearchType == SearchTypes::BEST_POINT)||(mOptions.mSearchType == SearchTypes::ANNEALING))
             {
                dirs = new FT[n * mOptions.numbOfPoints];
             } 
@@ -264,6 +265,29 @@ namespace LOCSEARCH {
                 bool isStepSuccessful = false;
                 const FT h = sft;
                 int Unsuccess = 0;
+                const double e = 2.718281828;
+                if (mOptions.mSearchType == SearchTypes::ANNEALING)
+                {
+                    FT xtmp[n];
+                    FT fn; 
+                    for (int i = 0; i < mOptions.maxStepNumber; i++) 
+                    {
+                        for (int j = 0; j < n; j++) 
+                        {
+                            xtmp[j] = x[j] + ((rand() / (double)RAND_MAX) - 0.5);
+                            
+                        }
+                        fn = obj->func(xtmp);
+                        
+                        if ((fn < fcur) || ((rand() / (double)RAND_MAX) <= pow(e, -(fn - fcur) / annealing_temp)))
+                        {
+                            
+                            fcur = fn;
+                            isStepSuccessful = true;
+                            snowgoose::VecUtils::vecCopy(n, xtmp, x);
+                        }
+                    }                     
+                }
                 if (mOptions.mSearchType == SearchTypes::GRANULARITY)
                 {
                     FT* parameter_tweak = new FT[n];
@@ -437,7 +461,18 @@ namespace LOCSEARCH {
                     std::cout << "f =" << fcur << std::endl;
                     std::cout << "sft =" << sft << std::endl;
                 }
-                
+                if (mOptions.mSearchType == SearchTypes::ANNEALING)
+                {
+                    if (annealing_temp > 0.00001)
+                    {
+                        annealing_temp *= 0.9;
+                    }
+                    else 
+                    {
+                        br = true;
+                    }
+                    
+                }
                 if (!success) {
                     if (mOptions.mSearchType == SearchTypes::GRANULARITY)
                     {
