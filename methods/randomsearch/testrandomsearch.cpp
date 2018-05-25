@@ -41,7 +41,7 @@
     return 0;
 }*/
 int main(int argc, char** argv) {
-    const int n = 100;
+    const int n = 1000;
     
     OPTITEST::RosenbrockProblemFactory fact(n, -4, 8);
     COMPI::MPProblem<double> *mpp = fact.getProblem();
@@ -65,8 +65,8 @@ int main(int argc, char** argv) {
     desc.getLineSearch().reset(locs);    
     desc.getOptions().mInc = 1.418;
     desc.getOptions().mDec = 0.368;
-    desc.getOptions().mDoTracing = false;
-    desc.getOptions().numbOfPoints = 1500;
+    //desc.getOptions().mDoTracing = false;
+    desc.getOptions().numbOfPoints = 100;
     desc.getOptions().maxStepNumber = 2000;
 
     //desc.getOptions().mSearchType = LOCSEARCH::AdvancedCoordinateDescent<double>::SearchTypes::NO_DESCENT;
