@@ -5,17 +5,16 @@
  */
 
 /* 
- * File:   best_point_method.hpp
+ * File:   granular_method.hpp
  * Author: kate
  *
- * Created on 27 декабря 2018 г., 22:15
+ * Created on 28 декабря 2018 г., 0:57
  */
 
-#ifndef BEST_POINT_METHOD_HPP
-#define BEST_POINT_METHOD_HPP
+#ifndef GRANULAR_METHOD_HPP
+#define GRANULAR_METHOD_HPP
 
 #include <sstream>
-#include <stdlib.h>
 #include <vector>
 #include <functional>
 #include <memory>
@@ -36,7 +35,7 @@ namespace LOCSEARCH {
     /**
      * Random method implementation
      */
-    template <typename FT> class BestPointMethod : public COMPI::Solver<FT> {
+    template <typename FT> class GranularMethod : public COMPI::Solver<FT> {
     public:
 
         /**
@@ -67,7 +66,7 @@ namespace LOCSEARCH {
             /**
              * Minimal value of step
              */
-            FT minStep = 0.00001;
+            FT minStep = 0.0000001;
             /**
              * Initial value of granularity
              */
@@ -104,7 +103,7 @@ namespace LOCSEARCH {
          * @param stopper - reference to the stopper
          * @param ls - pointer to the line search
          */
-        BestPointMethod(const COMPI::MPProblem<FT>& prob) :
+        GranularMethod(const COMPI::MPProblem<FT>& prob) :
         mProblem(prob) {
             unsigned int typ = COMPI::MPUtils::getProblemType(prob);
             SG_ASSERT(typ == COMPI::MPUtils::ProblemTypes::BOXCONSTR | COMPI::MPUtils::ProblemTypes::CONTINUOUS | COMPI::MPUtils::ProblemTypes::SINGLEOBJ);
@@ -123,6 +122,7 @@ namespace LOCSEARCH {
          * @param v  the resulting value
          * @return true if search converged and false otherwise
          */
+      
         bool search(FT* x, FT& v) override {
             bool rv = false;
             auto obj = mProblem.mObjectives.at(0);
@@ -131,7 +131,9 @@ namespace LOCSEARCH {
             FT fcur = obj->func(x);
             int StepNumber = 0; 
             int Unsuccess = 0;
+            double grain_size = 1.0;
             bool br = false;
+            double annealing_temp = 200;
             
             unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
             std::default_random_engine generator(seed);
@@ -148,8 +150,22 @@ namespace LOCSEARCH {
             const snowgoose::Box<double>& box = *(mProblem.mBox);
             FT sft = 1.0;
 
-            dirs = new FT[n * mOptions.numbOfPoints];
-            //generator, based on normal distribution
+            dirs = new FT[n*n];
+
+            // boost generator
+            /*auto direction = [&] () {
+                
+                for (int j = 0; j < mOptions.numbOfPoints; j++)
+                {
+                    DistributionType::result_type tmp = variate();
+                    for (int i = 0; i< n; i++)
+                    {
+                        dirs [n*j + i] = tmp[i];     
+                    }
+                }
+            };*/
+            
+        /*    //generator, based on normal distribution
             auto direction = [&] (int amount_of_points) {
                 for (int j = 0; j < amount_of_points; j++)
                 {
@@ -165,7 +181,16 @@ namespace LOCSEARCH {
                         dirs [n*j + i] /= sum;  
                     }
                 }
-            };
+            };*/
+            /*auto direction = [&] (int amount_of_points) {
+                    for (int j = 0; j < amount_of_points; j++)
+                    {
+                        for (int i = 0; i< n; i++)
+                        {
+                            dirs [n*j + i] = distribution(generator);
+                        }
+                    }
+                };
             auto normalize = [&] () {
                         FT sum = 0.0;
                         for (int i = 0; i< n; i++)
@@ -177,6 +202,13 @@ namespace LOCSEARCH {
                         {
                             main_dir [ i] /= sum;  
                         }
+            };*/
+            auto direction = [&] (int amount_of_points) {
+                snowgoose::VecUtils::vecSet(n * n, 0., dirs);
+                for (int i = 0; i < n; i++) 
+                {
+                    dirs[i * n + i] = 1;
+                }
             };
 
             auto inc = [this] (FT h) {
@@ -197,42 +229,32 @@ namespace LOCSEARCH {
                 //std::cout << "\n*** Step " << StepNumber << " ***\n";
                 bool isStepSuccessful = false;
                 const FT h = sft;
-                
-                    FT delta_f[mOptions.numbOfPoints];
-                    FT delta_x[n];
-                    FT xtmp[n];
-                    main_dir = new FT[n];
-                    snowgoose::VecUtils::vecSet(n, 0., main_dir);
+                int Unsuccess = 0;
+                const double e = 2.718281828;
 
-                    for (int i = 0; i < mOptions.numbOfPoints; i++) 
-                    {
+                    FT* parameter_tweak = new FT[n];
+                    double t = unif(rng) - 0.5;
+                    FT xtmp[n];
+                    int vector_number = rand() % n; 
                         for (int j = 0; j < n; j++)
                         {
-                            delta_x[j] = x[j] + dirs[i * n + j] * h;
+                            parameter_tweak[j] = t * dirs[vector_number * n + j] * grain_size;
+                            xtmp[j] = parameter_tweak[j] + x[j];
                         }
-                        delta_f[i] = obj->func(delta_x);
-                        delta_f[i] = delta_f[i] - fcur;
-                        for (int j = 0; j < n; j++)
-                        {   
-                            main_dir[j] += dirs[i * n + j] * delta_f[i];
+                        FT fn = obj->func(xtmp); 
+                        if (fn < fcur)
+                        {
+                            isStepSuccessful = true;
+                            snowgoose::VecUtils::vecCopy(n, xtmp, x);
+                            fcur = fn;
                         }
-                    }
-                    snowgoose::VecUtils::vecMult(n, main_dir, (- 1.0 / h), main_dir);
-                    normalize();
-                    snowgoose::VecUtils::vecSaxpy(n, x, main_dir, h, xtmp);
-                    FT fn = obj->func(xtmp);
-                    if (fn < fcur)
-                    {
-                        isStepSuccessful = true;
-                        snowgoose::VecUtils::vecCopy(n, xtmp, x);
-                        fcur = fn;
-                    }
+                
                 return isStepSuccessful;
             };
            
             while (!br) {
 
-                direction(mOptions.numbOfPoints);
+               direction(1);
                 
                 bool success = step();
  
@@ -242,17 +264,22 @@ namespace LOCSEARCH {
                     std::cout << "f =" << fcur << std::endl;
                     std::cout << "sft =" << sft << std::endl;
                 }
-
+                
                 if (!success) {
-                        if (sft > mOptions.minStep) 
-                            {
-                                sft = dec(sft);
-                            } 
-                            else
-                            {
-                              br = true;
-                            }
-                } //else sft = inc(sft); 
+                    
+                        ++Unsuccess; 
+                        if ((StepNumber%100 == 0) && (Unsuccess >= 95))
+                        {
+                            grain_size *= 0.1;
+                            Unsuccess = 0;
+                        }
+                           
+                }  
+                else 
+                {
+                        sft = inc(sft);
+                }
+                
                 if (StepNumber >= mOptions.maxStepNumber) {
                     br = true;
                 }
@@ -321,5 +348,5 @@ namespace LOCSEARCH {
     };
 }
 
-#endif /* BEST_POINT_METHOD_HPP */
+#endif /* GRANULAR_METHOD_HPP */
 

@@ -9,3 +9,4 @@ all dep clean indent tests::
 	cd mtcoordescent && $(MAKE) $@ && cd .. 
 	#cd randomsearch && $(MAKE) $@ && cd .. 
 	cd best_point && $(MAKE) $@ && cd .. 
+	cd granular && $(MAKE) $@ && cd .. 
