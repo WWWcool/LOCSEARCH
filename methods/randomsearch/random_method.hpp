@@ -18,12 +18,6 @@
 #include <chrono>
 #include <random>
 
-/*
-#include <methods/boost/random.hpp>
-#include <methods/boost/random/variate_generator.hpp>
-#include <methods/boost/random/uniform_on_sphere.hpp>
-*/
-
 namespace LOCSEARCH {
     /**
      * Random method implementation
@@ -115,7 +109,7 @@ namespace LOCSEARCH {
             /**
              * Search type
              */
-            SearchTypes mSearchType = SearchTypes::STANDART;
+            SearchTypes mSearchType = SearchTypes::BEST_TRYING;
         };
 
         /**
@@ -165,11 +159,7 @@ namespace LOCSEARCH {
             rng.seed(ss);
             std::uniform_real_distribution<double> unif(0, 1);
             
-            /*typedef boost::mt19937 gen;
-            typedef boost::uniform_on_sphere<float_t> dist(n);
-            typedef boost::variate_generator<GeneratorType, DistributionType > variate(gen, dist);
-            */
-            
+           
             FT* dirs;
             FT* main_dir;
             const snowgoose::Box<double>& box = *(mProblem.mBox);
@@ -456,7 +446,6 @@ namespace LOCSEARCH {
                 StepNumber++;
                 if (mOptions.mDoTracing) {
                     std::cout << (success ? "Success" : "Not success") << std::endl;
-                    //printArray("x", n, x);
                     std::cout << "f =" << fcur << std::endl;
                     std::cout << "sft =" << sft << std::endl;
                 }
